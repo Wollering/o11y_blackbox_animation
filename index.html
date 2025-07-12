@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PowerPoint-Optimized Observability Animation</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: white;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+            color: #333;
+        }
+        
+        #container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px 30px;
+            border-radius: 50px;
+            border: 2px solid #333;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .control-button {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 10px rgba(102, 126, 234, 0.3);
+        }
+        
+        .control-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .control-button.active {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+            box-shadow: 0 5px 20px rgba(255, 107, 107, 0.4);
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px 20px;
+            border-radius: 20px;
+            border: 1px solid #ddd;
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+        
+        .status-off { background: #ddd; }
+        .status-on { background: #4ecdc4; animation: pulse 2s infinite; }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .hotkey {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-family: monospace;
+            font-size: 12px;
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="controls">
+            <button class="control-button" onclick="startAnimation()" id="startBtn">
+                ▶️ Start Animation
+                <span class="hotkey">Space</span>
+            </button>
+            <button class="control-button" onclick="toggleInternalView()" id="internalBtn">
+                👁️ Show Internals
+                <span class="status-indicator status-off" id="internalStatus"></span>
+                <span class="hotkey">1</span>
+            </button>
+            <button class="control-button" onclick="toggleParticles()" id="particleBtn">
+                ✨ Data Streams
+                <span class="status-indicator status-on" id="particleStatus"></span>
+                <span class="hotkey">2</span>
+            </button>
+            <button class="control-button" onclick="resetAnimation()" id="resetBtn">
+                🔄 Reset
+                <span class="hotkey">R</span>
+            </button>
+        </div>
+        
+        <div id="instructions">
+            💡 Use hotkeys for quick control during presentation: Space, 1, 2, R
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer;
+        let cubeGroup, cubeFrame, internalComponents = [];
+        let particles = [], connectionLines = [];
+        let animationId;
+        let showInternal = false;
+        let showParticles = true;
+        let animationStarted = false;
+        
+        function init() {
+            // Scene setup
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0xffffff, 1);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.getElementById('container').appendChild(renderer.domElement);
+            
+            // Lighting setup
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(10, 10, 5);
+            directionalLight.castShadow = true;
+            scene.add(directionalLight);
+            
+            const pointLight1 = new THREE.PointLight(0x4ecdc4, 0.8, 50);
+            pointLight1.position.set(-5, 5, 5);
+            scene.add(pointLight1);
+            
+            const pointLight2 = new THREE.PointLight(0xff6b6b, 0.8, 50);
+            pointLight2.position.set(5, -5, 5);
+            scene.add(pointLight2);
+            
+            // Create the sophisticated cube system
+            createAdvancedCube();
+            
+            // Create particle systems for data streams
+            createAdvancedParticleSystems();
+            
+            // Position camera
+            camera.position.set(8, 6, 10);
+            camera.lookAt(0, 0, 0);
+            
+            // Setup keyboard controls
+            setupKeyboardControls();
+            
+            // Update UI
+            updateUI();
+            
+            // Start render loop
+            animate();
+        }
+        
+        function setupKeyboardControls() {
+            document.addEventListener('keydown', (event) => {
+                switch(event.code) {
+                    case 'Space':
+                        event.preventDefault();
+                        startAnimation();
+                        break;
+                    case 'Digit1':
+                        toggleInternalView();
+                        break;
+                    case 'Digit2':
+                        toggleParticles();
+                        break;
+                    case 'KeyR':
+                        resetAnimation();
+                        break;
+                }
+            });
+        }
+        
+        function updateUI() {
+            // Update status indicators
+            document.getElementById('internalStatus').className = 
+                'status-indicator ' + (showInternal ? 'status-on' : 'status-off');
+            document.getElementById('particleStatus').className = 
+                'status-indicator ' + (showParticles ? 'status-on' : 'status-off');
+            
+            // Update button states
+            document.getElementById('internalBtn').className = 
+                'control-button' + (showInternal ? ' active' : '');
+            document.getElementById('particleBtn').className = 
+                'control-button' + (showParticles ? ' active' : '');
+            
+            // Update button text
+            document.getElementById('internalBtn').innerHTML = 
+                `👁️ ${showInternal ? 'Hide' : 'Show'} Internals
+                <span class="status-indicator ${showInternal ? 'status-on' : 'status-off'}" id="internalStatus"></span>
+                <span class="hotkey">1</span>`;
+            
+            document.getElementById('particleBtn').innerHTML = 
+                `✨ Data Streams
+                <span class="status-indicator ${showParticles ? 'status-on' : 'status-off'}" id="particleStatus"></span>
+                <span class="hotkey">2</span>`;
+        }
+        
+        function createAdvancedCube() {
+            cubeGroup = new THREE.Group();
+            scene.add(cubeGroup);
+            
+            // Create cube frame (edges only)
+            const frameGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(6, 6, 6));
+            const frameMaterial = new THREE.LineBasicMaterial({ 
+                color: 0x2c3e50,
+                linewidth: 3
+            });
+            cubeFrame = new THREE.LineSegments(frameGeometry, frameMaterial);
+            cubeGroup.add(cubeFrame);
+            
+            // Create face panels (initially opaque)
+            createCubeFaces();
+            
+            // Create internal components
+            createInternalSystem();
+        }
+        
+        function createCubeFaces() {
+            const faceGeometry = new THREE.PlaneGeometry(6, 6);
+            const faceMaterial = new THREE.MeshLambertMaterial({ 
+                color: 0x34495e,
+                transparent: true,
+                opacity: 0.8,
+                side: THREE.DoubleSide
+            });
+            
+            // Create 6 faces
+            const positions = [
+                { pos: [3, 0, 0], rot: [0, Math.PI/2, 0] },      // Right
+                { pos: [-3, 0, 0], rot: [0, -Math.PI/2, 0] },    // Left
+                { pos: [0, 3, 0], rot: [-Math.PI/2, 0, 0] },     // Top
+                { pos: [0, -3, 0], rot: [Math.PI/2, 0, 0] },     // Bottom
+                { pos: [0, 0, 3], rot: [0, 0, 0] },              // Front
+                { pos: [0, 0, -3], rot: [0, Math.PI, 0] }        // Back
+            ];
+            
+            positions.forEach(({ pos, rot }) => {
+                const face = new THREE.Mesh(faceGeometry, faceMaterial);
+                face.position.set(...pos);
+                face.rotation.set(...rot);
+                cubeGroup.add(face);
+            });
+        }
+        
+        function createInternalSystem() {
+            // Create central data processing hub
+            const hubGeometry = new THREE.SphereGeometry(0.8, 16, 16);
+            const hubMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0x3498db,
+                transparent: true,
+                opacity: 0,
+                emissive: 0x2980b9,
+                emissiveIntensity: 0.3
+            });
+            const centralHub = new THREE.Mesh(hubGeometry, hubMaterial);
+            internalComponents.push(centralHub);
+            cubeGroup.add(centralHub);
+            
+            // Create processing gears around the hub
+            for (let i = 0; i < 8; i++) {
+                const angle = (i / 8) * Math.PI * 2;
+                const radius = 2;
+                
+                const gearGeometry = new THREE.TorusGeometry(0.4, 0.1, 8, 16);
+                const gearMaterial = new THREE.MeshPhongMaterial({ 
+                    color: new THREE.Color().setHSL(i * 0.1, 0.8, 0.6),
+                    transparent: true,
+                    opacity: 0,
+                    emissive: new THREE.Color().setHSL(i * 0.1, 0.8, 0.3),
+                    emissiveIntensity: 0.2
+                });
+                const gear = new THREE.Mesh(gearGeometry, gearMaterial);
+                
+                gear.position.set(
+                    Math.cos(angle) * radius,
+                    Math.sin(angle) * radius * 0.5,
+                    Math.sin(angle * 2) * radius * 0.5
+                );
+                
+                gear.userData = { rotationSpeed: 0.02 * (i % 2 === 0 ? 1 : -1) };
+                internalComponents.push(gear);
+                cubeGroup.add(gear);
+            }
+            
+            // Create data visualization elements
+            createDataVisualizationElements();
+            
+            // Create connection network
+            createConnectionNetwork();
+        }
+        
+        function createDataVisualizationElements() {
+            // Create layered data charts
+            const chartColors = [0xff6b6b, 0x4ecdc4, 0xffe66d, 0xa8e6cf];
+            
+            for (let layer = 0; layer < 4; layer++) {
+                const chartGeometry = new THREE.PlaneGeometry(1.5, 1.5);
+                const chartMaterial = new THREE.MeshBasicMaterial({ 
+                    color: chartColors[layer],
+                    transparent: true,
+                    opacity: 0
+                });
+                const chart = new THREE.Mesh(chartGeometry, chartMaterial);
+                
+                chart.position.set(-1, -1.5, -1 + layer * 0.1);
+                chart.rotation.x = -Math.PI / 6;
+                
+                internalComponents.push(chart);
+                cubeGroup.add(chart);
+            }
+            
+            // Create floating data nodes
+            for (let i = 0; i < 20; i++) {
+                const nodeGeometry = new THREE.SphereGeometry(0.1, 8, 8);
+                const nodeMaterial = new THREE.MeshPhongMaterial({ 
+                    color: new THREE.Color().setHSL(Math.random(), 0.8, 0.6),
+                    transparent: true,
+                    opacity: 0,
+                    emissive: new THREE.Color().setHSL(Math.random(), 0.8, 0.3),
+                    emissiveIntensity: 0.5
+                });
+                const node = new THREE.Mesh(nodeGeometry, nodeMaterial);
+                
+                node.position.set(
+                    (Math.random() - 0.5) * 4,
+                    (Math.random() - 0.5) * 4,
+                    (Math.random() - 0.5) * 4
+                );
+                
+                node.userData = { 
+                    originalPosition: node.position.clone(),
+                    floatSpeed: 0.01 + Math.random() * 0.02,
+                    floatOffset: Math.random() * Math.PI * 2
+                };
+                
+                internalComponents.push(node);
+                cubeGroup.add(node);
+            }
+        }
+        
+        function createConnectionNetwork() {
+            // Create grid lines inside the cube
+            const gridMaterial = new THREE.LineBasicMaterial({ 
+                color: 0x7fb3d3,
+                transparent: true,
+                opacity: 0
+            });
+            
+            // Horizontal grid lines
+            for (let y = -2; y <= 2; y += 1) {
+                for (let z = -2; z <= 2; z += 1) {
+                    const gridGeometry = new THREE.BufferGeometry().setFromPoints([
+                        new THREE.Vector3(-2.5, y, z),
+                        new THREE.Vector3(2.5, y, z)
+                    ]);
+                    const gridLine = new THREE.Line(gridGeometry, gridMaterial);
+                    connectionLines.push(gridLine);
+                    cubeGroup.add(gridLine);
+                }
+            }
+            
+            // Vertical grid lines
+            for (let x = -2; x <= 2; x += 1) {
+                for (let z = -2; z <= 2; z += 1) {
+                    const gridGeometry = new THREE.BufferGeometry().setFromPoints([
+                        new THREE.Vector3(x, -2.5, z),
+                        new THREE.Vector3(x, 2.5, z)
+                    ]);
+                    const gridLine = new THREE.Line(gridGeometry, gridMaterial);
+                    connectionLines.push(gridLine);
+                    cubeGroup.add(gridLine);
+                }
+            }
+        }
+        
+        function createAdvancedParticleSystems() {
+            const streamColors = [0xff6b6b, 0x4ecdc4, 0xffe66d];
+            const streamDirections = [
+                new THREE.Vector3(1, 0.5, 0.5),
+                new THREE.Vector3(-1, 0.5, -0.5),
+                new THREE.Vector3(0, 1, 0.5)
+            ];
+            
+            for (let s = 0; s < 3; s++) {
+                const particleGroup = [];
+                for (let i = 0; i < 30; i++) {
+                    const particleGeometry = new THREE.SphereGeometry(0.08, 6, 6);
+                    const particleMaterial = new THREE.MeshBasicMaterial({ 
+                        color: streamColors[s],
+                        transparent: true,
+                        opacity: 0.9
+                    });
+                    const particle = new THREE.Mesh(particleGeometry, particleMaterial);
+                    
+                    resetParticle(particle, s);
+                    particleGroup.push(particle);
+                    scene.add(particle);
+                }
+                particles.push(particleGroup);
+            }
+        }
+        
+        function animate() {
+            animationId = requestAnimationFrame(animate);
+            
+            const time = Date.now() * 0.001;
+            
+            // Animate internal components
+            internalComponents.forEach((component, index) => {
+                if (component.userData.rotationSpeed) {
+                    component.rotation.z += component.userData.rotationSpeed;
+                    component.rotation.x += component.userData.rotationSpeed * 0.5;
+                }
+                
+                if (component.userData.floatSpeed) {
+                    const offset = component.userData.floatOffset + time * component.userData.floatSpeed;
+                    component.position.y = component.userData.originalPosition.y + Math.sin(offset) * 0.3;
+                    component.position.x = component.userData.originalPosition.x + Math.cos(offset * 0.7) * 0.2;
+                }
+            });
+            
+            // Animate particles
+            if (showParticles) {
+                particles.forEach((particleGroup, streamIndex) => {
+                    particleGroup.forEach(particle => {
+                        particle.position.add(particle.userData.velocity);
+                        
+                        const distance = particle.position.length();
+                        particle.material.opacity = Math.max(0, 0.9 - distance * 0.08);
+                        
+                        if (distance > 20 || particle.material.opacity <= 0) {
+                            resetParticle(particle, streamIndex);
+                        }
+                    });
+                });
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        function resetParticle(particle, streamIndex) {
+            const side = Math.floor(Math.random() * 6);
+            const offset = 3.2;
+            
+            switch(side) {
+                case 0: particle.position.set(offset, (Math.random()-0.5)*5, (Math.random()-0.5)*5); break;
+                case 1: particle.position.set(-offset, (Math.random()-0.5)*5, (Math.random()-0.5)*5); break;
+                case 2: particle.position.set((Math.random()-0.5)*5, offset, (Math.random()-0.5)*5); break;
+                case 3: particle.position.set((Math.random()-0.5)*5, -offset, (Math.random()-0.5)*5); break;
+                case 4: particle.position.set((Math.random()-0.5)*5, (Math.random()-0.5)*5, offset); break;
+                case 5: particle.position.set((Math.random()-0.5)*5, (Math.random()-0.5)*5, -offset); break;
+            }
+            
+            const streamDirections = [
+                new THREE.Vector3(1, 0.3, 0.3),
+                new THREE.Vector3(-1, 0.3, -0.3),
+                new THREE.Vector3(0, 1, 0.3)
+            ];
+            
+            particle.userData = {
+                velocity: streamDirections[streamIndex].clone().multiplyScalar(0.03 + Math.random() * 0.02)
+            };
+            particle.material.opacity = 0.9;
+        }
+        
+        function startAnimation() {
+            if (animationStarted) return;
+            animationStarted = true;
+            
+            setTimeout(() => {
+                revealInternalComponents();
+            }, 500);
+            
+            // Update button
+            document.getElementById('startBtn').innerHTML = '✅ Animation Started';
+        }
+        
+        function revealInternalComponents() {
+            let progress = 0;
+            const revealInterval = setInterval(() => {
+                progress += 0.015;
+                
+                // Make cube faces transparent
+                cubeGroup.children.forEach(child => {
+                    if (child.material && child.material.opacity !== undefined && child !== cubeFrame) {
+                        child.material.opacity = Math.max(0.1, 0.8 - progress);
+                    }
+                });
+                
+                // Show internal components
+                internalComponents.forEach(component => {
+                    if (component.material.opacity !== undefined) {
+                        component.material.opacity = Math.min(0.9, progress);
+                    }
+                });
+                
+                // Show connection lines
+                connectionLines.forEach(line => {
+                    line.material.opacity = Math.min(0.4, progress * 0.5);
+                });
+                
+                if (progress >= 1) {
+                    clearInterval(revealInterval);
+                    showInternal = true;
+                    updateUI();
+                }
+            }, 50);
+        }
+        
+        function resetAnimation() {
+            animationStarted = false;
+            showInternal = false;
+            
+            cubeGroup.children.forEach(child => {
+                if (child.material && child.material.opacity !== undefined && child !== cubeFrame) {
+                    child.material.opacity = 0.8;
+                }
+            });
+            
+            internalComponents.forEach(component => {
+                if (component.material.opacity !== undefined) {
+                    component.material.opacity = 0;
+                }
+            });
+            
+            connectionLines.forEach(line => {
+                line.material.opacity = 0;
+            });
+            
+            document.getElementById('startBtn').innerHTML = '▶️ Start Animation <span class="hotkey">Space</span>';
+            updateUI();
+        }
+        
+        function toggleInternalView() {
+            if (!animationStarted) {
+                startAnimation();
+                return;
+            }
+            
+            showInternal = !showInternal;
+            
+            const targetOpacity = showInternal ? 0.1 : 0.8;
+            const targetInternalOpacity = showInternal ? 0.9 : 0;
+            
+            cubeGroup.children.forEach(child => {
+                if (child.material && child.material.opacity !== undefined && child !== cubeFrame) {
+                    child.material.opacity = targetOpacity;
+                }
+            });
+            
+            internalComponents.forEach(component => {
+                if (component.material.opacity !== undefined) {
+                    component.material.opacity = targetInternalOpacity;
+                }
+            });
+            
+            connectionLines.forEach(line => {
+                line.material.opacity = showInternal ? 0.4 : 0;
+            });
+            
+            updateUI();
+        }
+        
+        function toggleParticles() {
+            showParticles = !showParticles;
+            particles.forEach(particleGroup => {
+                particleGroup.forEach(particle => {
+                    particle.visible = showParticles;
+                });
+            });
+            updateUI();
+        }
+        
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        init();
+    </script>
+</body>
+</html>
